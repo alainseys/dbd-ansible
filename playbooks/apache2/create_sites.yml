@@ -1,0 +1,73 @@
+---
+- name: Configure Apache Virtual Hosts
+  hosts: webservers
+  become: true
+  vars:
+    sites:
+      - domain: player.noordzee105.be
+        document_root: /var/www/html/player
+        alias: ""
+        admin_email: info@doobeedoo.be
+        log_prefix: doobeedoo_online_BE
+        ssl_enabled: true
+
+      - domain: stream.noordzee105.be
+        document_root: /var/www/html/player
+        alias: www.stream.noordzee105.be
+        admin_email: info@doobeedoo.be
+        log_prefix: stream_noordzee105_BE
+        ssl_enabled: true
+
+      - domain: kerst.noordzee105.be
+        document_root: /var/www/html/kerst
+        alias: kerst.noordzee105.be
+        admin_email: info@doobeedoo.be
+        log_prefix: kerst_noordzee105_BE
+        ssl_enabled: true
+
+
+  tasks:
+    - name: Ensure Apache is installed
+      apt:
+        name: apache2
+        state: present
+        update_cache: yes
+
+    - name: Ensure required Apache modules are enabled
+      apache2_module:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - rewrite
+        - proxy
+        - proxy_http
+        - ssl
+
+    - name: Deploy Apache site configuration
+      template:
+        src: apache_vhost.j2
+        dest: "/etc/apache2/sites-available/{{ item.domain }}.conf"
+        owner: root
+        group: root
+        mode: 0644
+      loop: "{{ sites }}"
+      notify: Reload Apache
+
+    - name: Enable Apache sites
+      command: "a2ensite {{ item.domain }}.conf"
+      args:
+        warn: false
+      loop: "{{ sites }}"
+      notify: Reload Apache
+
+    - name: Ensure Apache service is running
+      service:
+        name: apache2
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Reload Apache
+      service:
+        name: apache2
+        state: reloaded
